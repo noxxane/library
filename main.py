@@ -1,6 +1,7 @@
 """program to track my books"""
 
 from datetime import date
+from typing import List, Dict, Any
 import argparse
 import yaml
 
@@ -34,30 +35,49 @@ class Book:
         }
 
 
-parser = argparse.ArgumentParser(
-    prog="library",
-    description="library management software",
-    usage="%(prog)s {start,finish} [--title TITLE] [--author AUTHOR]",
-)
+def get_log() -> List[Dict[str, Any]]:
+    """gets log and returns a list of dicts"""
+    try:
+        with open("log.yaml", "r", encoding="utf-8") as log_file:
+            log = yaml.safe_load(log_file)
+            if log is not None:
+                return log
+            return []
+    except FileNotFoundError:
+        return []
+    except yaml.YAMLError:
+        print("Corrupted YAML. Returning an empty list.")
+        return []
+
+
+def parse_date(given_date: str | date | None) -> date | None:
+    """parses a date from yaml"""
+    if given_date is None:
+        return None
+    if isinstance(given_date, date):
+        return given_date
+    if isinstance(given_date, str):
+        return date.fromisoformat(given_date)
+    return None
 
 
 def book_from_dict(book_dict: dict) -> Book:
     """creates a book from a dict"""
     title = book_dict["title"]
     author = book_dict["author"]
-    date_began = book_dict["date_began"]
-    date_finished = book_dict["date_finished"]
+    date_began = parse_date(book_dict["date_began"])
+    date_finished = parse_date(book_dict["date_finished"])
+
+    if date_began is None:
+        raise ValueError("date_began cannot be None")
+
     return Book(title, author, date_began, date_finished)
 
 
 def start_book(new_book: Book):
     """starts a book by adding it to the log with today's date as its starts
     date"""
-    old_log = [{}]
-    with open("log.yaml", "r", encoding="utf-8") as old_log_file:
-        old_log = yaml.safe_load(old_log_file)
-
-    new_log = old_log
+    new_log = get_log()
     new_log.append(new_book.to_dict())
 
     with open("log.yaml", "w", encoding="utf-8") as new_log_file:
@@ -66,13 +86,9 @@ def start_book(new_book: Book):
 
 def finish_book(title: str):
     """finishes a book by adding a fininshed date"""
-    old_log = [{}]
-    with open("log.yaml", "r", encoding="utf-8") as old_log_file:
-        old_log = yaml.safe_load(old_log_file)
-
-    new_log = old_log
+    log = get_log()
     finished_book = None
-    for book in old_log:
+    for book in log:
         if book["title"] == title:
             finished_book = book
             break
@@ -80,23 +96,26 @@ def finish_book(title: str):
     if finished_book is None:
         print("Error: Book not found")
         return
-    new_log.remove(finished_book)
+    log.remove(finished_book)
     finished_book["date_finished"] = date.today()
-    new_log.append(finished_book)
+    log.append(finished_book)
 
     with open("log.yaml", "w", encoding="utf-8") as new_log_file:
-        yaml.dump(new_log, new_log_file)
+        yaml.dump(log, new_log_file)
 
 
 def print_logs():
     """prints all books in logs"""
-    with open("log.yaml", "r", encoding="utf-8") as log_file:
-        log = yaml.safe_load(log_file)
-        for book in log:
-            print(book_from_dict(book).to_string())
+    log = get_log()
+    for book in log:
+        print(book_from_dict(book).to_string())
 
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    prog="library",
+    description="library management software",
+)
+
 subparsers = parser.add_subparsers(dest="action", help="Available actions")
 
 start_parser = subparsers.add_parser("start", help="Start reading a book")
