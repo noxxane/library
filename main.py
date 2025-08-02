@@ -23,6 +23,8 @@ class Book:
         author = self.author
         date_began = self.date_began
         date_finished = self.date_finished
+        if date_finished is None:
+            return f"{title} by {author}: Started {date_began} and in progress"
         return f"{title} by {author}: Started {date_began} and finished {date_finished}"
 
     def to_dict(self):
@@ -57,7 +59,12 @@ def parse_date(given_date: str | date | None) -> date | None:
     if isinstance(given_date, date):
         return given_date
     if isinstance(given_date, str):
-        return date.fromisoformat(given_date)
+        try:
+            formatted_date = date.fromisoformat(given_date)
+            return formatted_date
+        except ValueError:
+            print("Failed to format date from ISO format")
+            return None
     return None
 
 
@@ -78,6 +85,9 @@ def start_book(new_book: Book):
     """starts a book by adding it to the log with today's date as its starts
     date"""
     new_log = get_log()
+    if new_book.title in [x["title"] for x in new_log]:
+        print("Book already started")
+        return
     new_log.append(new_book.to_dict())
 
     with open("log.yaml", "w", encoding="utf-8") as new_log_file:
@@ -85,23 +95,19 @@ def start_book(new_book: Book):
 
 
 def finish_book(title: str):
-    """finishes a book by adding a fininshed date"""
+    """finishes a book by adding a finished date"""
     log = get_log()
-    finished_book = None
     for book in log:
         if book["title"] == title:
-            finished_book = book
-            break
-
-    if finished_book is None:
+            if book["date_finished"] is None:
+                book["date_finished"] = date.today()
+                with open("log.yaml", "w", encoding="utf-8") as new_log_file:
+                    yaml.dump(log, new_log_file)
+                print(f"Finished book: {title}")
+                return
+            print("Book already finished")
+            return
         print("Error: Book not found")
-        return
-    log.remove(finished_book)
-    finished_book["date_finished"] = date.today()
-    log.append(finished_book)
-
-    with open("log.yaml", "w", encoding="utf-8") as new_log_file:
-        yaml.dump(log, new_log_file)
 
 
 def print_logs():
